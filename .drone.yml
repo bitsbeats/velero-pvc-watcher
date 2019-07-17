@@ -12,6 +12,7 @@ steps:
     environment:
       CGO_ENABLED: "0"
     commands:
+      - apk add -U --no-cache git
       - go build .
 
   - name: publish image
