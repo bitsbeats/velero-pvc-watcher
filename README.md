@@ -30,6 +30,20 @@ For real world usage use the docker image and helm chart.
 
 ## Installation
 
+```console
+git clone git@github.com:bitsbeats/velero-pvc-watcher.git
+cd velero-pvc-watcher
+kubectl create namespace velero-pvc-watcher
+kubectl config set-context --current --namespace=velero-pvc-watcher
+helm upgrade -i velero-pvc-watcher velero-pvc-watcher
+```
+You can now scrape the metrics directly via prometheus kubernetes discovery, annotations:
+| annotation | default value |
+|---|---|
+| prometheus.io/scrape | true     |
+| prometheus.io/port   | 2112     |
+| prometheus.io/path   | /metrics |
+
 ## Build
 ```console
 CGO_ENABLED=0 go build .

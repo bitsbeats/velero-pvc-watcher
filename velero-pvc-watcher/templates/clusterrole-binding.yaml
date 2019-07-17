@@ -1,0 +1,15 @@
+{{- if .Values.rbac.create }}
+kind: ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ include "velero-pvc-watcher.fullname" . }}
+  labels:
+subjects:
+- kind: ServiceAccount
+  name: {{ include "velero-pvc-watcher.fullname" . }}
+  namespace: {{.Release.Namespace}}
+roleRef:
+  kind: ClusterRole
+  name: {{ include "velero-pvc-watcher.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

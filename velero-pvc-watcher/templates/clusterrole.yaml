@@ -1,0 +1,17 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "velero-pvc-watcher.fullname" . }}
+  labels:
+{{ include "velero-pvc-watcher.labels" . | indent 4 }}
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - pods
+  verbs:
+  - 'list'
+  - 'watch'
+  - 'get'
+{{- end }}

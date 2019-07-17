@@ -1,0 +1,18 @@
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+{{ toYaml .Values.metrics.annotations | indent 4 }}
+  name: {{ include "velero-pvc-watcher.fullname" . }}
+  labels:
+{{ include "velero-pvc-watcher.labels" . | indent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ include "velero-pvc-watcher.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
