@@ -1,9 +1,6 @@
 # velero-pvc-watcher
 
 [![Build Status](https://cloud.drone.io/api/badges/bitsbeats/velero-pvc-watcher/status.svg)](https://cloud.drone.io/bitsbeats/velero-pvc-watcher)
-[![Gitter chat](https://badges.gitter.im/drone/drone.png)](https://gitter.im/drone/drone)
-[![Join the discussion at https://discourse.drone.io](https://img.shields.io/badge/discourse-forum-orange.svg)](https://discourse.drone.io)
-[![Drone questions at https://stackoverflow.com](https://img.shields.io/badge/drone-stackoverflow-orange.svg)](https://stackoverflow.com/questions/tagged/drone.io)
 [![Go Report](https://goreportcard.com/badge/github.com/bitsbeats/velero-pvc-watcher)](https://goreportcard.com/badge/github.com/bitsbeats/velero-pvc-watcher)
 
 Kubernetes controller for velero that detects PVCs with no restic backup and exposes a prometheus metric
