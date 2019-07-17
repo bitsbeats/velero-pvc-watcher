@@ -38,6 +38,7 @@ kubectl config set-context --current --namespace=velero-pvc-watcher
 helm upgrade -i velero-pvc-watcher velero-pvc-watcher
 ```
 You can now scrape the metrics directly via prometheus kubernetes discovery, annotations:
+
 | annotation | default value |
 |---|---|
 | prometheus.io/scrape | true     |
