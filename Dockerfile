@@ -1,5 +1,5 @@
 FROM alpine
 
-ADD ./velero-pvc-watcher /velero-pvc-watcher
+ADD ./controller /controller
 
-ENTRYPOINT /velero-pvc-watcher
+ENTRYPOINT /controller

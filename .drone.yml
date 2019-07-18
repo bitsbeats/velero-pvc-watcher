@@ -13,7 +13,7 @@ steps:
       CGO_ENABLED: "0"
     commands:
       - apk add -U --no-cache git
-      - go build .
+      - go build -o ./controller .
 
   - name: publish image
     image: plugins/docker
