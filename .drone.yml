@@ -24,4 +24,8 @@ steps:
         from_secret: docker_user
       password:
         from_secret: docker_pass
-
+  
+  - name: create helm chart package
+    image: dtzar/helm-kubectl:2.14.1
+    commands:
+      - helm package velero-pvc-watcher
