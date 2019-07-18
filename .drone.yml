@@ -29,4 +29,5 @@ steps:
     image: dtzar/helm-kubectl:2.14.1
     commands:
       - helm lint velero-pvc-watcher
+      - helm init --client-only
       - helm package velero-pvc-watcher
