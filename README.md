@@ -42,6 +42,32 @@ You can now scrape the metrics directly via prometheus kubernetes discovery, ann
 | prometheus.io/port   | 2112     |
 | prometheus.io/path   | /metrics |
 
+## Example StatefulSet config
+```
+apiVersion: apps/v1
+kind: StatefulSet
+spec:
+  template:
+    metadata:
+      annotations:
+        backup.velero.io/backup-volumes: data,logging
+        backup.velero.io/backup-volumes-excludes: tmp
+```
+
+## Example Alertmanager config
+```
+alert: Velero PVC Check
+for: 10m
+expr: |
+  backupmonitor_missing != 0
+labels:
+  severity: warning
+annotations:
+  text: >-
+    {{ $labels.instance }} {{ $labels.namespace }} {{ $labels.owner_kind }}/{{ $labels.owner_name }}
+    pvc backup is not configured or deactivated.
+```
+
 ## Build
 ```console
 CGO_ENABLED=0 go build .
