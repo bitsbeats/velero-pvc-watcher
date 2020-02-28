@@ -27,12 +27,12 @@ For real world usage use the docker image and helm chart.
 
 ## Installation
 
+Helm Chart
+https://github.com/bitsbeats/helm-charts
+
 ```console
-git clone git@github.com:bitsbeats/velero-pvc-watcher.git
-cd velero-pvc-watcher
-kubectl create namespace velero-pvc-watcher
-kubectl config set-context --current --namespace=velero-pvc-watcher
-helm upgrade -i velero-pvc-watcher velero-pvc-watcher
+helm repo add bitsbeats https://bitsbeats.github.io/helm-charts/
+helm upgrade -i --namespace <YOUR NAMESPACE> bitsbeats/velero-pvc-watcher
 ```
 You can now scrape the metrics directly via prometheus kubernetes discovery, annotations:
 
