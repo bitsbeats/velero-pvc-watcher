@@ -18,31 +18,35 @@ For real world usage use the docker image and helm chart.
 ## Environment Variables
 
 
-| variable | description  | default value |
-|---|---|---|
-| METRICSPATH          | url path of the prom metrics | /metrics  |
-| PORT                 | port of the metrics webserver | 2112 |
-| EXCLUDEANNOTATION    | pod annotation for backup excluded volumes | backup.velero.io/backup-volumes-excludes |
-| BACKUPANNOTATION     | pod annotation for backup volumes  | backup.velero.io/backup-volumes |
+| variable          | description                                | default value                            |
+|-------------------|--------------------------------------------|------------------------------------------|
+| METRICSPATH       | url path of the prom metrics               | /metrics                                 |
+| PORT              | port of the metrics webserver              | 2112                                     |
+| EXCLUDEANNOTATION | pod annotation for backup excluded volumes | backup.velero.io/backup-volumes-excludes |
+| BACKUPANNOTATION  | pod annotation for backup volumes          | backup.velero.io/backup-volumes          |
 
 ## Installation
 
 Helm Chart
 https://github.com/bitsbeats/helm-charts
 
-```console
+```sh
 helm repo add bitsbeats https://bitsbeats.github.io/helm-charts/
 helm upgrade -i --namespace <YOUR NAMESPACE> bitsbeats/velero-pvc-watcher
 ```
+
 You can now scrape the metrics directly via prometheus kubernetes discovery, annotations:
 
-| annotation | default value |
-|---|---|
-| prometheus.io/scrape | true     |
-| prometheus.io/port   | 2112     |
-| prometheus.io/path   | /metrics |
+| annotation           | default value |
+|----------------------|---------------|
+| prometheus.io/scrape | true          |
+| prometheus.io/port   | 2112          |
+| prometheus.io/path   | /metrics      |
 
 ## Example StatefulSet config
+
+**Note**: The names come from `pod.spec.volumes`, not the pvc name.
+
 ```
 apiVersion: apps/v1
 kind: StatefulSet
@@ -55,6 +59,7 @@ spec:
 ```
 
 ## Example Alertmanager config
+
 ```
 alert: Velero PVC Check
 for: 10m
