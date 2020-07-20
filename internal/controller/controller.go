@@ -16,16 +16,21 @@ import (
 )
 
 // Controller default
-type Controller struct {
-	indexer           cache.Indexer
-	queue             workqueue.RateLimitingInterface
-	informer          cache.Controller
-	deletedIndexer    cache.Indexer
-	volumeMissing     prometheus.GaugeVec
-	excludeAnnotation string
-	backupAnnotation  string
-	podCache          map[string]map[string]bool
-}
+type (
+	OwnerName  string
+	VolumeName string
+
+	Controller struct {
+		indexer           cache.Indexer
+		queue             workqueue.RateLimitingInterface
+		informer          cache.Controller
+		deletedIndexer    cache.Indexer
+		volumeMissing     prometheus.GaugeVec
+		excludeAnnotation string
+		backupAnnotation  string
+		podCache          map[OwnerName]map[VolumeName]bool
+	}
+)
 
 // New default
 func New(queue workqueue.RateLimitingInterface, indexer cache.Indexer, informer cache.Controller, deletedIndexer cache.Indexer, volumeMissing prometheus.GaugeVec, excludeAnnotation string, backupAnnotation string) *Controller {
@@ -37,7 +42,7 @@ func New(queue workqueue.RateLimitingInterface, indexer cache.Indexer, informer 
 		volumeMissing:     volumeMissing,
 		excludeAnnotation: excludeAnnotation,
 		backupAnnotation:  backupAnnotation,
-		podCache:          map[string]map[string]bool{},
+		podCache:          map[OwnerName]map[VolumeName]bool{},
 	}
 }
 
@@ -53,16 +58,15 @@ func (c *Controller) processNextItem() bool {
 	defer c.queue.Done(key)
 
 	// Invoke the method containing the business logic
-	err := c.syncToStdout(key.(string), c.volumeMissing, c.excludeAnnotation, c.backupAnnotation)
+	err := c.validateBackupAnnotations(key.(string), c.volumeMissing, c.excludeAnnotation, c.backupAnnotation)
 	// Handle the error if something went wrong during the execution of the business logic
 	c.handleErr(err, key)
 	return true
 }
 
-// syncToStdout is the business logic of the controller. In this controller it simply prints
-// information about the pod to stdout. In case an error happened, it has to simply return the error.
-// The retry logic should not be part of the business logic.
-func (c *Controller) syncToStdout(key string, volumeMissing prometheus.GaugeVec, excludeAnnotation string, backupAnnotation string) error {
+// validateBackupAnnotations is the business logic of the controller. It
+// validates that all volumes have a backup annotation assinged.
+func (c *Controller) validateBackupAnnotations(key string, volumeMissing prometheus.GaugeVec, excludeAnnotation string, backupAnnotation string) error {
 
 	obj, exists, err := c.indexer.GetByKey(key)
 	if err != nil {
@@ -70,49 +74,28 @@ func (c *Controller) syncToStdout(key string, volumeMissing prometheus.GaugeVec,
 		return err
 	}
 	if !exists {
-		// Below we will warm up our cache with a Pod, so that we will see a delete for one pod
 		klog.Infof("pod %s does not exist anymore", key)
-
-		// Handling cleanup steps
 		if obj, exists, err = c.deletedIndexer.GetByKey(key); err == nil && exists {
 
 			pod := obj.(*v1.Pod)
-			podOwnerKind := "none"
-			podOwnerName := "none"
-			if len(pod.OwnerReferences) >= 1 {
-				podOwnerKind = pod.OwnerReferences[0].Kind
-				podOwnerName = pod.OwnerReferences[0].Name
-			}
-			ownerName := fmt.Sprintf("%s/%s/%s", pod.Namespace, podOwnerKind, podOwnerName)
-			delete(c.podCache[ownerName], pod.Name)
-			if len(c.podCache[ownerName]) == 0 {
-				klog.Infof("disabling metric %s/%s/%s", pod.Namespace, podOwnerKind, podOwnerName)
-				disableMetric(volumeMissing, pod.Namespace, podOwnerKind, podOwnerName)
-			}
+			ownerInfo := getPodOwnerInfo(pod)
+			klog.Infof("disabling metric %s", ownerInfo.name)
+			c.disableMetric(ownerInfo)
 			_ = c.deletedIndexer.Delete(key)
 		}
 
 	} else {
-		// Note that you also have to check the uid if you have a local controlled resource, which
-		// is dependent on the actual instance, to detect that a Pod was recreated with the same name
-
 		pod := obj.(*v1.Pod)
-		podOwnerKind := "none"
-		podOwnerName := "none"
-		if len(pod.OwnerReferences) >= 1 {
-			podOwnerKind = pod.OwnerReferences[0].Kind
-			podOwnerName = pod.OwnerReferences[0].Name
-		}
-		ownerName := fmt.Sprintf("%s/%s/%s", pod.Namespace, podOwnerKind, podOwnerName)
-		if _, ok := c.podCache[ownerName]; !ok {
-			c.podCache[ownerName] = map[string]bool{}
-		}
+		ownerInfo := getPodOwnerInfo(pod)
 
-		c.podCache[ownerName][pod.Name] = true
+		if _, ok := c.podCache[ownerInfo.name]; !ok {
+			c.podCache[ownerInfo.name] = map[VolumeName]bool{}
+		}
 		klog.Infof("controlling backup config for %s", pod.GetName())
-		if checkBackup(pod, backupAnnotation, excludeAnnotation) {
-			klog.Infof("backup missing enable metric for %s/%s/%s", pod.Namespace, podOwnerKind, podOwnerName)
-			enableMetric(volumeMissing, pod.Namespace, podOwnerKind, podOwnerName)
+		missings := c.getMissingBackups(pod)
+		if len(missings) > 0 {
+			klog.Infof("backup missing enable metric for %s", ownerInfo.name)
+			c.enableMetric(ownerInfo, missings)
 		}
 	}
 
@@ -174,91 +157,92 @@ func (c *Controller) runWorker() {
 	}
 }
 
-func enableMetric(volumeMissing prometheus.GaugeVec, namespace string, ownerKind string, ownerName string) {
-
-	volumeMissing.With(prometheus.Labels{
-		"namespace":  namespace,
-		"owner_kind": ownerKind,
-		"owner_name": ownerName,
-	}).Set(1)
+func (c *Controller) enableMetric(o *PodOwnerInfo, volumeNames []VolumeName) {
+	for _, volumeName := range volumeNames {
+		c.podCache[o.name][volumeName] = true
+		c.volumeMissing.With(prometheus.Labels{
+			"namespace":   o.namespace,
+			"owner_kind":  o.ownerKind,
+			"owner_name":  o.ownerName,
+			"volume_name": string(volumeName),
+		}).Set(1)
+	}
 
 }
 
-func disableMetric(volumeMissing prometheus.GaugeVec, namespace string, ownerKind string, ownerName string) {
-
-	volumeMissing.Delete(prometheus.Labels{
-		"namespace":  namespace,
-		"owner_kind": ownerKind,
-		"owner_name": ownerName,
-	})
+func (c *Controller) disableMetric(o *PodOwnerInfo) {
+	for volumeName, _ := range c.podCache[o.name] {
+		c.volumeMissing.Delete(prometheus.Labels{
+			"namespace":   o.namespace,
+			"owner_kind":  o.ownerKind,
+			"owner_name":  o.ownerName,
+			"volume_name": string(volumeName),
+		})
+	}
 }
 
-func checkBackup(pod *v1.Pod, excludeAnnotation string, backupAnnotation string) bool {
-
+// getMissingBackups returns a list of all volume names that are missing a
+// backup include or exclude configuration
+func (c *Controller) getMissingBackups(pod *v1.Pod) []VolumeName {
 	// get pod annotations
 	annotations := pod.GetAnnotations()
 
+	// gather excludes
+	backupVolumesExcludesString := annotations[c.excludeAnnotation]
+	excludes := map[string]interface{}{}
+	for _, exclude := range strings.Split(backupVolumesExcludesString, ",") {
+		excludes[exclude] = nil
+	}
+
+	// gather includes
+	backupVolumesString := annotations[c.backupAnnotation]
+	includes := map[string]interface{}{}
+	for _, include := range strings.Split(backupVolumesString, ",") {
+		includes[include] = nil
+	}
+
 	// range over all volumes
-VolumeLoop:
+	missing := []VolumeName{}
 	for _, volume := range pod.Spec.Volumes {
-
-		// check if volume uses persistentVolumeClaim
-		if volume.PersistentVolumeClaim != nil {
-
-			klog.Infof("pod '%s' uses volume '%s' from pvc '%s'", pod.Name, volume.Name, volume.PersistentVolumeClaim.ClaimName)
-
-			// get backup-volumes annotation if present
-			if _, ok := annotations[backupAnnotation]; ok {
-
-				// first, clean/remove the comma
-				backupString := strings.Replace(annotations[backupAnnotation], ",", " ", -1)
-
-				// convert 'clened' comma separated string to slice
-				backupVolumes := strings.Fields(backupString)
-
-				// check if backup is configured
-				if contains(backupVolumes, volume.Name) {
-
-					klog.Infof("backup configured for '%s'", pod.Name)
-					continue VolumeLoop
-
-				}
-
-			}
-
-			// get backup-volumes-excludes annotation if present
-			if _, ok := annotations[excludeAnnotation]; ok {
-
-				// first, clean/remove the comma
-				backupExcludesString := strings.Replace(annotations[excludeAnnotation], ",", " ", -1)
-
-				// convert 'clened' comma separated string to slice
-				backupVolumesExcludes := strings.Fields(backupExcludesString)
-
-				// check if backup is configured
-				if contains(backupVolumesExcludes, volume.Name) {
-
-					klog.Infof("backup exclusion configured for '%s'", volume.Name)
-					continue VolumeLoop
-
-				}
-
-			}
-
-			klog.Infof("%s used but not backed up or excluded", volume.Name)
-			return true
-
+		if volume.PersistentVolumeClaim == nil {
+			continue
 		}
 
+		klog.Infof("pod '%s' uses volume '%s' from pvc '%s'", pod.Name, volume.Name, volume.PersistentVolumeClaim.ClaimName)
+		if _, ok := includes[volume.Name]; ok {
+			klog.Infof("backup configured for '%s'", pod.Name)
+			continue
+		}
+		if _, ok := excludes[volume.Name]; ok {
+			klog.Infof("backup exclusion configured for '%s'", volume.Name)
+			continue
+		}
+
+		klog.Infof("%s used but not backed up or excluded", volume.Name)
+		missing = append(missing, VolumeName(volume.Name))
+
 	}
-	return false
+
+	return missing
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
+type PodOwnerInfo struct {
+	name      OwnerName
+	ownerKind string
+	ownerName string
+	namespace string
+}
+
+func getPodOwnerInfo(pod *v1.Pod) *PodOwnerInfo {
+	o := &PodOwnerInfo{
+		ownerKind: "none",
+		ownerName: "none",
+		namespace: pod.Namespace,
 	}
-	return false
+	if len(pod.OwnerReferences) >= 1 {
+		o.ownerKind = pod.OwnerReferences[0].Kind
+		o.ownerName = pod.OwnerReferences[0].Name
+	}
+	o.name = OwnerName(fmt.Sprintf("%s/%s/%s", pod.Namespace, o.ownerKind, o.ownerName))
+	return o
 }

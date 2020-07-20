@@ -94,6 +94,7 @@ func main() {
 			"namespace",
 			"owner_kind",
 			"owner_name",
+			"volume_name",
 		},
 	)
 
