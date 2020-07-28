@@ -17,7 +17,6 @@ limitations under the License.
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -50,24 +49,23 @@ func main() {
 	var env Env
 	err := envconfig.Process("", &env)
 	if err != nil {
-		klog.Fatal(err.Error())
+		klog.Fatal("unable to parse environment: %s", err)
+	}
 	}
 	klog.Infof("env: %+v", env)
 
+	// k8s clientset
 	config, err := rest.InClusterConfig()
 	if err != nil {
-
 		kubeconfig := filepath.Join(homeDir(), ".kube", "config")
 		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
 		if err != nil {
-			klog.Fatal(err.Error())
+			klog.Fatal("unable to load kubeconfig: %s", err)
 		}
 	}
-
-	// create the clientset
 	clientset, err := kubernetes.NewForConfig(config)
 	if err != nil {
-		klog.Fatal(err.Error())
+		klog.Fatalf("unable to create clientset: %s", err)
 	}
 
 	// expose metrics
@@ -79,7 +77,7 @@ func main() {
 		}
 	}()
 
-	//init metrics
+	// init metrics
 	volumeMissing := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
 			Name: "backupmonitor_missing",
@@ -142,7 +140,7 @@ func main() {
 	stop := make(chan struct{})
 	defer close(stop)
 	go controller.Run(1, stop)
-	fmt.Println("velero restic backup controller started")
+	klog.Info("velero restic backup controller started")
 
 	// Wait forever
 	select {}
