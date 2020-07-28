@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/kelseyhightower/envconfig"
 	"github.com/prometheus/client_golang/prometheus"
@@ -51,6 +52,8 @@ func main() {
 	if err != nil {
 		klog.Fatal("unable to parse environment: %s", err)
 	}
+	if !strings.HasPrefix(env.Port, ":") {
+		env.Port = ":" + env.Port
 	}
 	klog.Infof("env: %+v", env)
 
@@ -68,15 +71,6 @@ func main() {
 		klog.Fatalf("unable to create clientset: %s", err)
 	}
 
-	// expose metrics
-	http.Handle(env.MetricsPath, promhttp.Handler())
-	go func() {
-		err := http.ListenAndServe(":"+env.Port, nil)
-		if err != nil {
-			klog.Fatal(err.Error())
-		}
-	}()
-
 	// init metrics
 	volumeMissing := prometheus.NewGaugeVec(
 		prometheus.GaugeOpts{
@@ -90,7 +84,6 @@ func main() {
 			"volume_name",
 		},
 	)
-
 	prometheus.MustRegister(volumeMissing)
 
 	// create the pod watcher
@@ -133,7 +126,6 @@ func main() {
 			}
 		},
 	}, cache.Indexers{})
-
 	controller := controller.New(queue, indexer, informer, deletedIndexer, *volumeMissing, env.BackupAnnotation, env.ExcludeAnnotation)
 
 	// Now let's start the controller
@@ -142,8 +134,13 @@ func main() {
 	go controller.Run(1, stop)
 	klog.Info("velero restic backup controller started")
 
-	// Wait forever
-	select {}
+	// listen
+	http.Handle(env.MetricsPath, promhttp.Handler())
+	err = http.ListenAndServe(env.Port, nil)
+	if err != nil {
+		klog.Fatal("unable to listen: %s", err)
+	}
+
 }
 
 func homeDir() string {
