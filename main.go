@@ -52,12 +52,7 @@ func main() {
 	if err != nil {
 		klog.Fatal(err.Error())
 	}
-
-	format := "metricspath: %v\nport: %v\nexcludeannotation: %v\nbackupannotation: %v\n"
-	_, err = fmt.Printf(format, env.MetricsPath, env.Port, env.ExcludeAnnotation, env.BackupAnnotation)
-	if err != nil {
-		klog.Fatal(err.Error())
-	}
+	klog.Infof("env: %+v", env)
 
 	config, err := rest.InClusterConfig()
 	if err != nil {
