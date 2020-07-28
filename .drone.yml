@@ -8,12 +8,11 @@ platform:
 
 steps:
   - name: go-build
-    image: golang:alpine
+    image: golang:1.14-alpine
     environment:
       CGO_ENABLED: "0"
     commands:
-      - apk add -U --no-cache git
-      - go build -o ./controller .
+      - go build -mod=vendor -o ./controller .
 
   - name: publish image
     image: plugins/docker
