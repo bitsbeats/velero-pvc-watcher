@@ -61,6 +61,7 @@ spec:
 ## Example Alertmanager config
 
 ```
+
 alert: Velero PVC Check
 for: 10m
 expr: |
@@ -69,8 +70,12 @@ labels:
   severity: warning
 annotations:
   text: >-
-    {{ $labels.instance }} {{ $labels.namespace }} {{ $labels.owner_kind }}/{{ $labels.owner_name }}
-    pvc backup is not configured or deactivated.
+    The pvc {{ $labels.volume_name }} used by
+    {{ $labels.owner_kind }}/{{ $labels.owner_name }} has no backup annotation.
+  action: >-
+    Either configure a backup or exclude the volume from backup. For more
+    information visit https://github.com/bitsbeats/velero-pvc-watcher
+
 ```
 
 ## Build
