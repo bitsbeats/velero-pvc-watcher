@@ -1,13 +1,17 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
+	"path/filepath"
 	"time"
 
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/client-go/util/homedir"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -22,14 +26,7 @@ const (
 var ()
 
 func main() {
-	config, err := clientcmd.BuildConfigFromFlags("", "/home/stefan/.kube/config")
-	if err != nil {
-		log.Fatalf("unable to load local config: %s", err)
-	}
-
-	// load k8s config
-	log.Printf("loading k8s config")
-	clientset, err := kubernetes.NewForConfig(config)
+	clientset, err := loadClientset()
 	if err != nil {
 		log.Fatalf("unable to connect to kubernetes: %s", err)
 	}
@@ -50,4 +47,23 @@ func main() {
 	http.Handle("/metrics", promhttp.Handler())
 	log.Printf("listening on %s", ListenAddr)
 	http.ListenAndServe(ListenAddr, nil)
+}
+
+// load matching clientset
+func loadClientset() (*kubernetes.Clientset, error) {
+	config, err := rest.InClusterConfig()
+	if err == rest.ErrNotInCluster {
+		log.Printf("using out of cluster config...")
+		home := homedir.HomeDir()
+		kubeconfig := filepath.Join(home, ".kube", "config")
+		config, err = clientcmd.BuildConfigFromFlags("", kubeconfig)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("unable to load config: %w", err)
+	}
+
+	// load k8s config
+	log.Printf("loading k8s config")
+	return kubernetes.NewForConfig(config)
+
 }
