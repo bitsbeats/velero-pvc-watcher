@@ -1,0 +1,31 @@
+---
+kind: pipeline
+name: default
+
+platform:
+  os: linux
+  arch: amd64
+
+steps:
+  - name: go-build
+    image: golang:1.16-alpine
+    environment:
+      CGO_ENABLED: "0"
+    commands:
+      - go build -mod=vendor -o ./controller .
+    when:
+      branch:
+        - main
+
+  - name: publish image
+    image: plugins/docker
+    settings:
+      repo: bitsbeats/velero-pvc-watcher
+      auto_tag: true
+      username:
+        from_secret: docker_user
+      password:
+        from_secret: docker_pass
+    when:
+      branch:
+        - main
