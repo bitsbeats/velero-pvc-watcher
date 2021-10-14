@@ -41,6 +41,18 @@ spec:
         backup.velero.io/backup-volumes-excludes: tmp
 ```
 
+## Example PVC config
+
+To exclude a PVC that is not in use from backups annotate it as follows:
+
+```yaml
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  annotations:
+    backup.velero.io/backup-excluded: "true"
+```
+
 ## Example Alertmanager config
 
 ```

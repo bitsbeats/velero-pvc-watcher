@@ -9,6 +9,7 @@ import (
 const (
 	BackupAnnotation  = "backup.velero.io/backup-volumes"
 	ExcludeAnnotation = "backup.velero.io/backup-volumes-excludes"
+	ExcludePVCAnnotation = "backup.velero.io/backup-excluded"
 )
 
 func listPodHandledPVCs(pod *v1.Pod, handledPvcNames *map[string]interface{}) {

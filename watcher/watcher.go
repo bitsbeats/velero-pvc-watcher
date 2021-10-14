@@ -84,6 +84,10 @@ func (w *Watcher) Update(namespace string) []PVCInfo {
 		return nil
 	}
 	for _, pvc := range pvcList {
+		annotations := pvc.GetAnnotations()
+		if v, ok := annotations[ExcludePVCAnnotation]; ok && v == "true" {
+			continue
+		}
 		pvcName := pvc.GetName()
 		if _, ok := handledPVCs[pvcName]; !ok {
 			missing = append(missing, PVCInfo{
